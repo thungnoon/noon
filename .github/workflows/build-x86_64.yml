@@ -243,33 +243,33 @@ jobs:
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: 上传固件到release
-      uses: softprops/action-gh-release@master
-      if: steps.tag.outputs.status == 'success' && !cancelled()
-      env:
+        uses: softprops/action-gh-release@master
+        if: steps.tag.outputs.status == 'success' && !cancelled()
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
+        with:
           name: ${{ steps.tag.outputs.release_date }} immortalwrt
           tag_name: ${{ steps.tag.outputs.release_tag }}
           body_path: release.txt
           files: ${{ env.FIRMWARE }}/*
 
-    - name: 删除并保留工作流
-      uses: Mattraks/delete-workflow-runs@main
-      with:
+      - name: 删除并保留工作流
+        uses: Mattraks/delete-workflow-runs@main
+        with:
           retain_days: 5
           keep_minimum_runs: 5
 
-    - name: 移除旧的Releases
-      uses: ophub/delete-releases-workflows@main
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
-      with:
-          delete_releases: true
-          releases_keep_latest: 15
-          delete_tags: true
-          gh_token: ${{ secrets.GITHUB_TOKEN }}
+       - name: 移除旧的Releases
+         uses: ophub/delete-releases-workflows@main
+         if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+         with:
+           delete_releases: true
+           releases_keep_latest: 15
+           delete_tags: true
+           gh_token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: 删除Artifacts文件
-      uses: geekyeggo/delete-artifact@main
-      with:
-         name: |
+      - name: 删除Artifacts文件
+        uses: geekyeggo/delete-artifact@main
+        with:
+          name: |
             bin-archive
