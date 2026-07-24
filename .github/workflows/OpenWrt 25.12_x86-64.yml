@@ -248,9 +248,8 @@ jobs:
           echo "release_tag=$(date +"%Y.%m.%d-${VERSION1}_X86-64")" >> $GITHUB_OUTPUT
           echo "status=success" >> $GITHUB_OUTPUT
 
-      - name: 自动发布 Release
-        if: steps.organize.outcome == 'success'
-        uses: softprops/action-gh-release@v2
+      - name: 上传固件到发布release
+        uses: softprops/action-gh-release@v2.0.4
         if: steps.tag.outputs.status == 'success' && !cancelled()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
