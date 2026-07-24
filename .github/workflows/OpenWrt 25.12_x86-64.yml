@@ -1,0 +1,268 @@
+name: 编译官方 OpenWrt 25.12 
+
+on:
+  push:
+    branches: [ master ]
+  repository_dispatch:
+  workflow_dispatch:
+    inputs:
+      BUILD_MODE:
+        description: 编译模式（无需修改yml，运行时选择）
+        type: choice
+        required: true
+        default: Stable
+        options:
+          - Stable
+          - Snapshot
+
+# 版本统一配置区，后续升级仅修改这里即可
+env:
+  # OpenWrt官方源码地址
+  REPO_URL: https://github.com/openwrt/openwrt
+  # 滚动开发分支
+  REPO_BRANCH: openwrt-25.12
+  # 固定稳定版标签，新版本直接替换，如v25.12.5
+  REPO_TAG: v25.12.5
+
+  CONFIG_FILE: .config
+  FEEDS_CONF: feeds.conf.default
+  DIY1_SH: diy1.sh
+  DIY2_SH: diy2.sh
+
+  TZ: Asia/Shanghai
+
+  UPLOAD_RELEASE: true
+  UPLOAD_BIN_DIR: false
+  UPLOAD_FIRMWARE: true
+
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 2G
+
+jobs:
+  build:
+    name: 编译任务
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: 释放系统最大可用空间
+        run: |
+          sudo apt-get clean
+          docker system prune -af || true
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /usr/local/share/boost \
+            /usr/local/lib/android \
+            /usr/local/lib/node_modules \
+            /opt/hostedtoolcache \
+            /usr/local/.ghcup \
+            /usr/local/.cargo \
+            /usr/local/lib/python3.* \
+            /usr/local/aws-sam-cli \
+            /usr/local/aws-cli \
+            /usr/local/julia* \
+            /usr/share/swift \
+            /usr/share/miniconda \
+            /usr/share/az* \
+            /usr/share/kotlinc \
+            /opt/microsoft \
+            /opt/google \
+            /var/lib/gems \
+            /opt/pipx \
+            /opt/amazon || true
+          df -h
+
+      - name: 检出仓库代码
+        uses: actions/checkout@v5
+
+      - name: 初始化全局变量（根据运行选择自动适配）
+        run: |
+          sudo timedatectl set-timezone "$TZ"
+          echo "date1=$(date +'%Y.%m.%d-%H.%M')" >> $GITHUB_ENV
+          echo "date2=$(date +'%Y.%m.%d')" >> $GITHUB_ENV
+          echo "date3=$(date '+%Y年%m月%d日')" >> $GITHUB_ENV
+
+          BUILD_MODE=${{ github.event.inputs.BUILD_MODE }}
+          if [[ "$BUILD_MODE" == "Stable" ]]; then
+            echo "CACHE_KEY=$REPO_TAG" >> $GITHUB_ENV
+            echo "OPENWRT_NAME=OpenWrt-${REPO_TAG}-Stable" >> $GITHUB_ENV
+            echo "USE_TAG=true" >> $GITHUB_ENV
+          else
+            echo "CACHE_KEY=$REPO_BRANCH" >> $GITHUB_ENV
+            echo "OPENWRT_NAME=OpenWrt-${REPO_BRANCH}-Snapshot" >> $GITHUB_ENV
+            echo "USE_TAG=false" >> $GITHUB_ENV
+          fi
+
+      - name: 安装编译依赖
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo -E apt-get -qq update
+          sudo -E apt-get -qq install \
+            ack antlr3 asciidoc autoconf automake autopoint \
+            binutils bison build-essential \
+            bzip2 ccache cmake cpio curl device-tree-compiler \
+            flex gawk gettext gcc-multilib g++-multilib \
+            git git-core gperf haveged help2man intltool \
+            libc6-dev-i386 libelf-dev libfuse-dev \
+            libglib2.0-dev libgmp3-dev libltdl-dev \
+            libmpc-dev libmpfr-dev \
+            libncurses5-dev libncursesw5-dev \
+            libpython3-dev libreadline-dev \
+            libssl-dev libtool \
+            lrzsz msmtp ninja-build \
+            p7zip p7zip-full patch pkgconf \
+            python3 python3-pyelftools python3-setuptools \
+            qemu-utils rsync scons squashfs-tools \
+            subversion swig texinfo uglifyjs \
+            unzip upx wget xmlto xxd zlib1g-dev
+          df -h
+
+      - name: 克隆OpenWrt源码（修复Annotated Tag警告）
+        run: |
+          git clone --depth 10 -b $REPO_BRANCH $REPO_URL openwrt
+          cd openwrt
+          git fetch origin tag $REPO_TAG
+
+          if [[ "${USE_TAG}" == "true" ]]; then
+            git checkout tags/$REPO_TAG -B release-$REPO_TAG
+            echo "=== 当前编译固定稳定Tag: $REPO_TAG ==="
+          else
+            git checkout $REPO_BRANCH
+            echo "=== 当前编译滚动分支: $REPO_BRANCH ==="
+          fi
+          echo "==== OpenWrt 版本信息 ===="
+          cat include/version.mk
+
+      - name: 初始化缓存目录
+        run: |
+          mkdir -p openwrt/dl
+          mkdir -p $GITHUB_WORKSPACE/.ccache
+          ccache -M 2G
+          ccache -o compression=true
+
+      - name: 首次自定义配置 diy1.sh
+        run: |
+          cd openwrt
+          [ -f "../$FEEDS_CONF" ] && cp "../$FEEDS_CONF" ./
+          if [ -f "../$DIY1_SH" ]; then
+            chmod +x "../$DIY1_SH"
+            "../$DIY1_SH"
+          fi
+
+      - name: 缓存 dl 下载包目录
+        uses: actions/cache@v5
+        with:
+          path: openwrt/dl
+          key: dl-${{ runner.os }}-${{ env.CACHE_KEY }}
+          restore-keys: |
+            dl-${{ runner.os }}-
+
+      - name: 缓存 ccache 编译缓存
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-${{ runner.os }}-${{ env.CACHE_KEY }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      - name: 更新 & 安装软件源 feeds
+        run: |
+          cd openwrt
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: 导入.config配置并执行 diy2.sh
+        run: |
+          [ -f "$CONFIG_FILE" ] && cp "$CONFIG_FILE" openwrt/.config
+          cd openwrt
+          if [ -f "../$DIY2_SH" ]; then
+            chmod +x "../$DIY2_SH"
+            "../$DIY2_SH"
+          fi
+          make defconfig
+
+      - name: 预下载全部源码包
+        run: |
+          cd openwrt
+          make download -j$(nproc)
+          find dl -size -1024c -exec ls -l {} \; -exec rm -f {} \;
+          make download -j$(nproc) || make download -j1 V=s
+
+      - name: 编译固件
+        id: compile
+        run: |
+          export PATH="/usr/lib/ccache:$PATH"
+          export CCACHE_DIR="${{ github.workspace }}/.ccache"
+          ccache -z
+          cd openwrt
+          echo "使用 $(nproc) 线程编译"
+          make -j$(nproc) || make -j1 || make -j1 V=s
+          ccache -s
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: 检查磁盘占用
+        if: (!cancelled())
+        run: |
+          df -hT
+
+      - name: 上传完整bin目录工件
+        if: steps.compile.outcome == 'success' && env.UPLOAD_BIN_DIR == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bin_${{ env.OPENWRT_NAME }}_${{ env.date1 }}
+          path: openwrt/bin
+
+      - name: 整理固件镜像文件
+        id: organize
+        if: steps.compile.outputs.status == 'success' && !cancelled()
+        run: |
+          cd openwrt/bin/targets/*/*
+          rm -rf *.bin
+          rm -rf *.buildinfo
+          rm -rf *rootfs.tar.gz
+          rm -rf *rootfs.img.gz
+          rm -rf *combined.img.gz
+          rm -rf *.json 
+          rm -rf *.manifest
+          rm -rf sha256sums
+          rm -rf packages
+          echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: 上传整理后固件工件
+        if: steps.organize.outcome == 'success' && env.UPLOAD_FIRMWARE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware_${{ env.OPENWRT_NAME }}_${{ env.DEVICE_NAME }}_${{ env.date1 }}
+          path: ${{ env.FIRMWARE }}
+
+      - name: 生成发布标签
+        id: tag
+        if: env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success' && !cancelled()
+        run: |
+          VERSION1="${REPO_BRANCH#*-}"
+          echo -e "  X86-64 平台\n  ${VERSION1} 源码\n ip地址 : 192.168.5.1" >> release.txt
+          echo "release_tag=$(date +"%Y.%m.%d-${VERSION1}_X86-64")" >> $GITHUB_OUTPUT
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: 自动发布 Release
+        if: steps.organize.outcome == 'success'
+        uses: softprops/action-gh-release@v2
+        if: steps.tag.outputs.status == 'success' && !cancelled()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
+          body_path: release.txt
+          files: ${{ env.FIRMWARE }}/*
+
+      - name: 编译后深度清理磁盘
+        if: always()
+        run: |
+          cd openwrt
+          rm -rf build_dir staging_dir tmp bin
+          ccache -s || true
+          df -h
