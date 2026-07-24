@@ -259,14 +259,14 @@ jobs:
           retain_days: 5
           keep_minimum_runs: 5
 
-       - name: 移除旧的Releases
-         uses: ophub/delete-releases-workflows@main
-         if: env.UPLOAD_RELEASE == 'true' && !cancelled()
-         with:
-           delete_releases: true
-           releases_keep_latest: 15
-           delete_tags: true
-           gh_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: 移除旧的Releases
+        uses: ophub/delete-releases-workflows@main
+        if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+        with:
+          delete_releases: true
+          releases_keep_latest: 15
+          delete_tags: true
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 删除Artifacts文件
         uses: geekyeggo/delete-artifact@main
