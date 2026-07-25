@@ -1,4 +1,4 @@
-name: OpenWrt 25.12_86-64 
+name: OpenWrt 25.12_x86-64 
 
 on:
   push:
