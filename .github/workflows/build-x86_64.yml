@@ -226,13 +226,6 @@ jobs:
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
           echo "status=success" >> $GITHUB_OUTPUT
 
-      - name: 上传整理后的固件
-        if: steps.organize.outcome == 'success' && env.UPLOAD_FIRMWARE == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: firmware_${{ env.OPENWRT_NAME }}_${{ env.DEVICE_NAME }}_${{ env.date1 }}
-          path: ${{ env.FIRMWARE }}
-
       - name: 生成发布标签
         id: tag
         if: env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success' && !cancelled()
