@@ -79,6 +79,9 @@ git clone https://github.com/sbwml/packages_lang_golang \
 -b 26.x \
 feeds/packages/lang/golang
 
+# 6.增加luci-app-mosdns-t 应用
+git clone https://github.com/jasonxtt/mosdns customfeeds/luci/applications/luci-app-mosdns-t
+
 # ==================================================
 # 完成
 # ==================================================
