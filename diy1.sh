@@ -22,6 +22,9 @@ git clone --depth 1 https://github.com/sirpdboy/luci-app-poweroffdevice.git pack
 # openclash
 git clone --depth 1 https://github.com/vernesong/OpenClash.git package/luci-app-openclash
 
+# clashoo
+git clone --depth 1 https://github.com/kenzok8/openwrt-clashoo.git package/luci-app-clashoo
+
 # OpenWrt-nikki
 git clone --depth 1 https://github.com/nikkinikki-org/OpenWrt-nikki.git package/luci-app-nikki
 
