@@ -41,7 +41,7 @@ git clone --depth 1 https://github.com/smallprogram/luci-app-ghfu.git package/lu
 git clone --depth 1 https://github.com/destan19/OpenAppFilter.git package/oaf
 
 # MosDNS-T
-git clone --depth 1 https://github.com/jasonxtt/mosdns.git package/luci-app-mosdns-t
+git clone -b openwrt --depth 1 https://github.com/jasonxtt/mosdns.git package/luci-app-mosdns-t
 
 # Disk Management (third-party)
 git clone --depth 1 https://github.com/lisaac/luci-app-diskman.git package/luci-app-diskman
