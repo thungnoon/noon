@@ -247,10 +247,12 @@ jobs:
           files: ${{ env.FIRMWARE }}/*
 
       - name: 删除并保留工作流
-        uses: Mattraks/delete-workflow-runs@main
+        uses: Mattraks/delete-workflow-runs@v2
         with:
-          retain_days: 5
-          keep_minimum_runs: 5
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: 1
+          keep_minimum_runs: 3
 
       - name: 移除旧的Releases
         uses: ophub/delete-releases-workflows@main
